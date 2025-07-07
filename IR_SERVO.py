@@ -9,7 +9,7 @@ GPIO.setmode(GPIO.BCM)
 GPIO.setup(IR_PIN, GPIO.IN)
 GPIO.setup(SERVO_PIN, GPIO.OUT)
 
-# Setup PWM for Servo
+# Setup PWM for Servo 
 pwm = GPIO.PWM(SERVO_PIN, 50)  # 50 Hz
 pwm.start(0)
 
