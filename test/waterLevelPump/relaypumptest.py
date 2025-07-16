@@ -1,23 +1,29 @@
 import RPi.GPIO as GPIO
 import time
 
-SENSOR_PIN = 17  # GPIO pin connected to 'S' pin
+# Define the GPIO pin connected to the relay's IN pin
+RELAY_PIN = 27  # Change if your relay is connected to a different pin
 
+# Setup GPIO
 GPIO.setmode(GPIO.BCM)
-GPIO.setup(SENSOR_PIN, GPIO.IN)
+GPIO.setup(RELAY_PIN, GPIO.OUT)
 
 try:
+    print("💧 Activating water pump on startup...")
+
+    # Turn ON the pump
+    GPIO.output(RELAY_PIN, GPIO.HIGH)  # If your relay is active LOW, use GPIO.LOW instead
+    print("🟢 Pump is ON")
+
+    # Keep the program running
     while True:
-        water_detected = GPIO.input(SENSOR_PIN)
-
-        if water_detected == GPIO.HIGH:
-            print("? Water detected!")
-        else:
-            print("?? No water detected!")
-
-        time.sleep(1)
+        time.sleep(1)  # Keeps the pump running
 
 except KeyboardInterrupt:
-    print("Exiting...")
+    print("\n🛑 Program stopped by user.")
+
 finally:
+    # Turn OFF the pump and cleanup
+    GPIO.output(RELAY_PIN, GPIO.LOW)
     GPIO.cleanup()
+    print("🔴 Pump is OFF. GPIO cleaned up.")

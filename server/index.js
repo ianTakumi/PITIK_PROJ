@@ -23,7 +23,7 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URL = process.env.MONGODB_URL;
 
 // Middleware
-app.use(cors());
+app.use(cors());  
 app.use(bodyParser.json());
 app.use(morgan("dev"));
 

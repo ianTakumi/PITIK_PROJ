@@ -2,30 +2,35 @@ import RPi.GPIO as GPIO
 import time
 
 # GPIO pin assignments
-SENSOR_PIN = 17  # Through-beam sensor input
-RELAY_PIN = 27   # Relay control output
+SENSOR_PIN = 17  # Through-beam sensor input (IR receiver)
+RELAY_PIN = 27   # Relay output to control the pump
 
-# Setup
+# GPIO setup
 GPIO.setmode(GPIO.BCM)
-GPIO.setup(SENSOR_PIN, GPIO.IN)
-GPIO.setup(RELAY_PIN, GPIO.OUT)
+GPIO.setup(SENSOR_PIN, GPIO.IN)      # Input from sensor
+GPIO.setup(RELAY_PIN, GPIO.OUT)      # Output to relay
+
+print("🔧 System initialized. Waiting for sensor input...")
 
 try:
     while True:
         sensor_state = GPIO.input(SENSOR_PIN)
 
-        if sensor_state == 0:  # 0 = beam interrupted (someone inside)
-            print("🟢 Beam broken — Pump ON")
+        if sensor_state == GPIO.HIGH:
+            # Beam is clear → no object → turn ON relay
+            print("🟢 Beam clear — Pump Off")
             GPIO.output(RELAY_PIN, GPIO.HIGH)
-        else:  # 1 = beam restored (no one inside)
-            print("⚪ Beam clear — Pump OFF")
+        else:
+            # Beam is blocked → object detected → turn OFF relay
+            print("🔴 Object detected — Pump On")
             GPIO.output(RELAY_PIN, GPIO.LOW)
 
-        time.sleep(0.1)  # adjust responsiveness
+        time.sleep(0.1)
 
 except KeyboardInterrupt:
     print("\n🛑 Program stopped by user.")
 
 finally:
-    GPIO.output(RELAY_PIN, GPIO.LOW)
+    GPIO.output(RELAY_PIN, GPIO.LOW)  # Ensure pump is off
     GPIO.cleanup()
+    print("✅ GPIO cleanup complete.")
