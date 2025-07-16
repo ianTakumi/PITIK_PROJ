@@ -10,11 +10,11 @@ print("? Relay Control Test Started")
 
 try:
     while True:
-        print("? Turning pump ON")
+        print("? Turning pump Off")
         GPIO.output(RELAY_PIN, GPIO.HIGH)  # Relay ON (may depend on relay logic)
         time.sleep(5)  # Pump runs for 5 seconds
 
-        print("? Turning pump OFF")
+        print("? Turning pump On")
         GPIO.output(RELAY_PIN, GPIO.LOW)   # Relay OFF
         time.sleep(5)
 
