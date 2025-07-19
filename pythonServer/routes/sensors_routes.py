@@ -5,6 +5,8 @@ from gpiozero import OutputDevice
 
 sensors_bp = Blueprint('sensors', __name__)
 relay = OutputDevice(26, active_high=False, initial_value=False)  # relay OFF at start
+relayThroughBeam = OutputDevice(27, active_high=False, initial_value=False)
+relayDC = OutputDevice(17, active_high=False, initial_value=False)
 
 # Format MongoDB _id for JSON
 def format_data(data):
@@ -58,7 +60,36 @@ def deactivate_relay():
     except Exception as e:
         print("Error deactivating relay:", e)
 
-# Create sensor data
+def activate_relayThroughbeam():
+    try:
+        relayThroughBeam.on() 
+        print("Relay through beam on")
+    except Exception as e:
+        print("Error activating relay through beam ", e)
+
+def deactivate_relayThroughbeam(): 
+    try: 
+        relayThroughBeam.off()
+        print("Relay through beam off")
+    except Exception as e:
+        print("Error deactivating relay through beam")
+
+def activate_relayDCmotor():
+    try:
+        relayDCMotor.on() 
+        print("DC motor relay ON")
+    except Exception as e:
+        print("Error activating DC motor relay:", e)
+
+def deactivate_relayDCmotor(): 
+    try: 
+        relayDCMotor.off()
+        print("DC motor relay OFF")
+    except Exception as e:
+        print("Error deactivating DC motor relay:", e)
+
+
+# Create sensor data 
 @sensors_bp.route('/', methods=['POST'])
 def create_sensor():
     sensor_data = request.json
@@ -68,21 +99,15 @@ def create_sensor():
     result = request.db['all_sensors'].insert_one(sensor_data)
     sensor_data['_id'] = str(result.inserted_id)
     print(sensor_data)
-      # Check sensor type and value to trigger relay
-    if sensor_data.get('type') == 'water_level':
-        try:
-            value = float(sensor_data.get('percent', 0))
-            if value > 25:
-                print(f"Value is {value} > 50: Activating relay")
-                activate_relay()
-            else:
-                print(f"Value is {value} <= 50: Deactivating relay")
-                deactivate_relay()
-        except ValueError:
-            print("Invalid value format. Deactivating relay as fallback.")
-            deactivate_relay()
-    else:
-        deactivate_relay()
+
+    if sensor_data.get('type') === 'chicken_shower':
+        if(sensor_data.get('detected')):
+            activate_relayThroughbeam()
+        elif(sensor_data.get('clear')):
+            deactivate_relayThroughbeam
+    
+   if sensor_data.get('type') === "ultrasonic":
+        
 
 
     # Emit to connected clients via Socket.IO
