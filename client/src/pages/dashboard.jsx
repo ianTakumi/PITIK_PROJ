@@ -2,16 +2,33 @@ import React, { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import ChickenHeight from "../components/ChickenHeight";
 import WaterLevel from "../components/WaterLevel";
+import ThroughBeam from "../components/ThroughBeam";
+import LoadCellStepper from "../components/LoadCellStepper";
+import FeedWeightMonitor from "../components/FeedWeight";
+import RaspiCam from "../components/RaspiCam";
+
 import axiosInstance from "../utils/axios";
+
 export default function Dashboard() {
   const [distance, setDistance] = useState(0);
+
+  // Chicken weight (platform)
+  const [weight, setWeight] = useState(0);
+  const [loadCellHistory, setLoadCellHistory] = useState([]);
+
+  // Feed tray weight
+  const [feedWeight, setFeedWeight] = useState(0);
+  const [feedHistory, setFeedHistory] = useState([]);
+
   const [waterLevel, setWaterLevel] = useState({
     percent: 0,
     status: "Unknown",
     raw: 0,
   });
+
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef(null);
+
   const [ultrasonicReadings, setUltrasonicReadings] = useState([]);
   const [waterLevelReadings, setWaterLevelReadings] = useState([]);
   const [throughBeamReadings, setThroughBeamReadings] = useState([]);
@@ -40,6 +57,10 @@ export default function Dashboard() {
           status: sensor.status,
           raw: sensor.raw,
         });
+      } else if (sensor.type === "load_cell") {
+        setWeight(sensor.value); // chicken weight platform
+      } else if (sensor.type === "load_cell_feed") {
+        setFeedWeight(sensor.value); // feed tray weight
       }
     });
 
@@ -53,7 +74,7 @@ export default function Dashboard() {
   }, []);
 
   const fetchLatestUltrasonic = async () => {
-    const res = await axiosInstance.get("/sensors/ultrasonic"); // last 5
+    const res = await axiosInstance.get("/sensors/ultrasonic");
     setDistance(res.data[0]?.value || 0);
     setUltrasonicReadings(res.data);
   };
@@ -72,20 +93,37 @@ export default function Dashboard() {
     setThroughBeamReadings(res.data);
   };
 
+  const fetchLatestLoadCell = async () => {
+    const res = await axiosInstance.get("/sensors/load-cell");
+    setLoadCellHistory(res.data);
+    if (res.data[0]?.value) {
+      setWeight(res.data[0].value);
+    }
+  };
+
+  const fetchLatestFeedWeight = async () => {
+    const res = await axiosInstance.get("/sensors/platform-load-cell");
+    setFeedHistory(res.data);
+    if (res.data[0]?.value) {
+      setFeedWeight(res.data[0].value);
+    }
+  };
+
   useEffect(() => {
     fetchLatestUltrasonic();
     fetchLatestWaterLevel();
     fetchLatestThroughBeam();
+    fetchLatestLoadCell();
+    fetchLatestFeedWeight();
   }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6 text-white">
       <div className="max-w-4xl mx-auto text-center mb-6">
         <h1 className="text-4xl font-bold">PITIK - Dashboard</h1>
         <div className="flex justify-center items-center gap-2 mt-2">
           <div
-            className={`w-3 h-3 rounded-full ${
-              isConnected ? "bg-green-500" : "bg-red-500"
-            }`}
+            className={`w-3 h-3 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`}
           ></div>
           <span>{isConnected ? "Connected" : "Disconnected"}</span>
         </div>
@@ -94,6 +132,11 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <ChickenHeight distance={distance} />
         <WaterLevel waterLevel={waterLevel} />
+        <ThroughBeam readings={throughBeamReadings} />
+        <LoadCellStepper weight={weight} height={distance} history={loadCellHistory} />
+        <FeedWeightMonitor weight={feedWeight} history={feedHistory} />
+        <RaspiCam /> 
+
       </div>
     </div>
   );

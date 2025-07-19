@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 
-export default function WaterLevel({ waterLevel, history }) {
+export default function WaterLevel({ waterLevel, history = [] }) {
   const [visibleCount, setVisibleCount] = useState(5);
-  const { percent, status, raw } = waterLevel;
+  const { percent = 0, status = "Unknown", raw = "-" } = waterLevel || {};
 
   const getColor = () => {
     switch (status.toLowerCase()) {
@@ -31,13 +31,12 @@ export default function WaterLevel({ waterLevel, history }) {
         <ul className="space-y-1 text-sm text-gray-300 max-h-48 overflow-auto">
           {visibleHistory.map((item, idx) => (
             <li key={idx}>
-              <span className="font-semibold">{item.time}:</span> {item.percent}
-              % – {item.status}
+              <span className="font-semibold">{item.time}:</span> {item.percent}% – {item.status}
             </li>
           ))}
         </ul>
 
-        {visibleCount < history.length && (
+        {Array.isArray(history) && visibleCount < history.length && (
           <button
             onClick={() => setVisibleCount((prev) => prev + 5)}
             className="mt-2 text-blue-400 hover:underline text-sm"
