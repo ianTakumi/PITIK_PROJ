@@ -53,13 +53,13 @@ export default function Dashboard() {
   }, []);
 
   const fetchLatestUltrasonic = async () => {
-    const res = await axiosInstance.get("/api/sensor/ultrasonic/latest"); // last 5
+    const res = await axiosInstance.get("/sensors/ultrasonic"); // last 5
     setDistance(res.data[0]?.value || 0);
     setUltrasonicReadings(res.data);
   };
 
   const fetchLatestWaterLevel = async () => {
-    const res = await axiosInstance.get("/api/sensor/water_level/latest");
+    const res = await axiosInstance.get("/sensors/capacitive-water-level");
     setWaterLevel({
       percent: res.data[0]?.percent || 0,
       status: res.data[0]?.status || "Unknown",
@@ -68,10 +68,15 @@ export default function Dashboard() {
   };
 
   const fetchLatestThroughBeam = async () => {
-    const res = await axiosInstance.get("/api/sensor/through_beam/latest");
+    const res = await axiosInstance.get("/sensors/through-beam");
     setThroughBeamReadings(res.data);
   };
 
+  useEffect(() => {
+    fetchLatestUltrasonic();
+    fetchLatestWaterLevel();
+    fetchLatestThroughBeam();
+  }, []);
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6 text-white">
       <div className="max-w-4xl mx-auto text-center mb-6">

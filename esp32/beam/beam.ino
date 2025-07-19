@@ -2,23 +2,24 @@
 #include <HTTPClient.h>
 
 // WiFi credentials
-const char* ssid = "SKYW_5F70_5G";
+const char* ssid = "SKYW_5F70_2G";
 const char* password = "9H56bKXv";
 
 // API endpoint
-const char* serverName = "http://192.168.1.20/sensors";
+const char* serverName = "http://192.168.1.245:5000/sensors/";
 
-// IR beam sensor pin
-#define SENSOR_PIN 2  // Adjust as needed
+// IR sensor pin
+#define SENSOR_PIN 32
 
-String lastStatus = "";
+int lastBeamStatus = HIGH;  // assume beam is unbroken
 
 void setup() {
   Serial.begin(115200);
   pinMode(SENSOR_PIN, INPUT);
 
+  // Connect to WiFi
   WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi...");
+  Serial.print("Connecting to WiFi");
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
@@ -27,39 +28,38 @@ void setup() {
 }
 
 void loop() {
-  int beamStatus = digitalRead(SENSOR_PIN);
-  String currentStatus;
+  int currentBeamStatus = digitalRead(SENSOR_PIN);
 
-  if (beamStatus == LOW) {
-    currentStatus = "occupied";  // IR beam broken → manok nasa shower
-  } else {
-    currentStatus = "vacant";    // beam clear → wala sa shower
-  }
-
-  // Only send update if changed
-  if (currentStatus != lastStatus) {
-    Serial.print("Shower status: ");
-    Serial.println(currentStatus);
-
-    if (WiFi.status() == WL_CONNECTED) {
-      HTTPClient http;
-      http.begin(serverName);
-      http.addHeader("Content-Type", "application/json");
-
-      // Updated type to "chicken_shower"
-      String payload = "{\"type\":\"chicken_shower\", \"value\":\"" + currentStatus + "\"}";
-      int httpResponseCode = http.POST(payload);
-
-      Serial.print("HTTP Response code: ");
-      Serial.println(httpResponseCode);
-
-      http.end();
+  if (currentBeamStatus != lastBeamStatus) {
+    // Beam status changed → either enter or exit
+    if (currentBeamStatus == LOW) {
+      Serial.println("Chicken entered (beam broken)");
+      sendDetection("detected");
     } else {
-      Serial.println("WiFi Disconnected");
+      Serial.println("Chicken exited (beam restored)");
+      sendDetection("clear");
     }
 
-    lastStatus = currentStatus;
+    lastBeamStatus = currentBeamStatus;  // update state
   }
 
-  delay(500); // check every 0.5 seconds
+  delay(50);  // small delay for debounce
+}
+
+void sendDetection(String status) {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.begin(serverName);
+    http.addHeader("Content-Type", "application/json");
+
+    String payload = "{\"type\":\"chicken_shower\", \"value\":\"" + status + "\"}";
+    int httpResponseCode = http.POST(payload);
+
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpResponseCode);
+
+    http.end();
+  } else {
+    Serial.println("WiFi Disconnected");
+  }
 }
