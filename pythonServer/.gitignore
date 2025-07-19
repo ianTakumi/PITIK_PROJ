@@ -1,0 +1,41 @@
+# Python compiled files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+
+
+
+# IDE/editor settings
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Log files
+*.log
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebooks checkpoints (if any)
+.ipynb_checkpoints/
+
+# Flask instance folder (if used)
+instance/
+
+# Coverage/test/report artifacts
+htmlcov/
+.coverage
+.tox/
+.nox/
+.pytest_cache/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/

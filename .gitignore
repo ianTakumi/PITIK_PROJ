@@ -1,0 +1,10 @@
+# Byte-compiled files
+__pycache__/
+*.pyc
+
+# Virtual environments
+pythonServer/venv/
+
+# Optional extras
+*.log
+.env
