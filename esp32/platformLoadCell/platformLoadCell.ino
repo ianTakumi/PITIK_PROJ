@@ -6,7 +6,8 @@
 
 HX711 scale;
 
-float calibration_factor = -7050.0;  // Adjust this based on your calibration
+// Start with a rough calibration factor; will need tuning
+float calibration_factor = -500.0;
 
 void setup() {
   Serial.begin(115200);
@@ -14,10 +15,11 @@ void setup() {
 
   Serial.println("Initializing HX711...");
   scale.begin(DT, SCK);
-  scale.set_scale(calibration_factor);  // Apply calibration factor
-  scale.tare();                         // Reset the scale to 0
+  scale.set_scale(calibration_factor);  // Apply initial calibration
+  scale.tare();                         // Reset scale to 0
 
-  Serial.println("Place weight to measure...");
+  Serial.println("Place known 205g weight (your phone)...");
+  delay(3000); // Wait for user to place the weight
 }
 
 void loop() {
@@ -25,10 +27,10 @@ void loop() {
     float weight = scale.get_units(5);  // Get average of 5 readings
     Serial.print("Weight: ");
     Serial.print(weight, 2);
-    Serial.println(" g");  // Change to "kg" if needed
+    Serial.println(" g");
   } else {
     Serial.println("HX711 not connected.");
   }
 
-  delay(500);  // Adjust reading interval
+  delay(500);
 }
