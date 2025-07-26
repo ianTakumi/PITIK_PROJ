@@ -1,9 +1,7 @@
 from flask import Blueprint, request, jsonify
 from extensions import socketio
 from datetime import datetime
-from gpiozero import OutputDevice
-from gpiozero import Servo
-from gpiozero.pins.pigpio import PiGPIOFactory
+from gpiozero import OutputDevice, Servo
 
 import os
 from dotenv import load_dotenv
@@ -16,13 +14,12 @@ load_dotenv()
 client = vonage.Client(key="845832bb", secret="JPRcfKt7f2JrwPm8")
 sms = vonage.Sms(client)
 
-
 sensors_bp = Blueprint('sensors', __name__)
-relay = OutputDevice(26, active_high=False, initial_value=False)  # relay OFF at start
+relay = OutputDevice(17, active_high=False, initial_value=False)  # relay OFF at start
 relayThroughBeam = OutputDevice(27, active_high=False, initial_value=False)
-relayDC = OutputDevice(17, active_high=False, initial_value=False)
-factory = PiGPIOFactory()
-servo = Servo(21, pin_factory=factory)  # Use GPIO 21 or any other free PWM-capable pin
+relayDC = OutputDevice(26, active_high=False, initial_value=False)
+
+servo = Servo(21)  # Software PWM
 
 stepper_pins = [
     OutputDevice(5),   # IN1
@@ -61,14 +58,12 @@ def push_egg():
     except Exception as e:
         print("❌ Error in push_egg():", e)
 
-
-# Format MongoDB _id for JSON
 def format_data(data):
     for item in data:
         item['_id'] = str(item['_id'])
     return data
 
-# Routes to get sensor data
+# Sensor routes
 @sensors_bp.route('/raspi-cam', methods=['GET'])
 def get_raspi_cam_inputs():
     data = list(request.db['raspi_cam'].find())
@@ -80,9 +75,18 @@ def get_capacitive_water_level_sensors():
     return jsonify(format_data(data))
 
 @sensors_bp.route('/ultrasonic', methods=['GET'])
-def get_ultrasonic_sensors():
-    data = list(request.db['ultrasonic'].find())
-    return jsonify(format_data(data))
+def get_ultrasonic_sensor():
+    try:
+        latest_data = request.db['all_sensors'].find_one(
+            {"type": "ultrasonic"}
+        )
+        if latest_data:
+            return jsonify(format_data([latest_data]))  # still using format_data for consistency
+        else:
+            return jsonify({"error": "No ultrasonic data found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @sensors_bp.route('/load-cell', methods=['GET'])
 def get_load_cell_sensors():
@@ -99,51 +103,50 @@ def get_through_beam_sensors():
     data = list(request.db['through_beam'].find())
     return jsonify(format_data(data))
 
-#  Relay control functions
+# Relay functions
 def activate_relay():
     try:
-        relay.on()  # LOW = ON
+        relay.on()
         print("Relay ON")
     except Exception as e:
         print("Error activating relay:", e)
 
 def deactivate_relay():
     try:
-        relay.off()  # HIGH = OFF
+        relay.off()
         print("Relay OFF")
     except Exception as e:
         print("Error deactivating relay:", e)
 
 def activate_relayThroughbeam():
     try:
-        relayThroughBeam.on() 
+        relayThroughBeam.on()
         print("Relay through beam on")
     except Exception as e:
-        print("Error activating relay through beam ", e)
+        print("Error activating relay through beam", e)
 
-def deactivate_relayThroughbeam(): 
-    try: 
+def deactivate_relayThroughbeam():
+    try:
         relayThroughBeam.off()
         print("Relay through beam off")
     except Exception as e:
-        print("Error deactivating relay through beam")
+        print("Error deactivating relay through beam", e)
 
 def activate_relayDCmotor():
     try:
-        relayDCMotor.on() 
+        relayDC.on()
         print("DC motor relay ON")
     except Exception as e:
         print("Error activating DC motor relay:", e)
 
-def deactivate_relayDCmotor(): 
-    try: 
-        relayDCMotor.off()
+def deactivate_relayDCmotor():
+    try:
+        relayDC.off()
         print("DC motor relay OFF")
     except Exception as e:
         print("Error deactivating DC motor relay:", e)
 
-
-# Create sensor data 
+# POST endpoint to handle sensor input
 @sensors_bp.route('/', methods=['POST'])
 def create_sensor():
     sensor_data = request.json
@@ -153,28 +156,29 @@ def create_sensor():
     result = request.db['all_sensors'].insert_one(sensor_data)
     sensor_data['_id'] = str(result.inserted_id)
 
-
+    # Chicken shower trigger
     if sensor_data.get('type') == 'chicken_shower':
         if sensor_data.get('value') == "detected":
             activate_relayThroughbeam()
         elif sensor_data.get('value') == "clear":
             deactivate_relayThroughbeam()
 
-   if sensor_data.get('type') == 'loadcell_full':
-    try:
-        weight_grams = float(sensor_data.get('value', 0))
-        weight_kg = weight_grams / 1000
-        print(f"Measured weight: {weight_kg:.2f} kg")
+    # Full load cell - chicken ready to sell
+    if sensor_data.get('type') == 'loadcell_full':
+        try:
+            weight_grams = float(sensor_data.get('value', 0))
+            weight_kg = weight_grams / 1000
+            print(f"Measured weight: {weight_kg:.2f} kg")
 
-        if weight_kg >= 1.5:
-            print("✅ Chicken weight >= 1.5kg — activating stepper motor.")
-            rotate_stepper_motor()
-        else:
-            print("⚖️ Chicken not ready — weight is below 1.5kg.")
-    except Exception as e:
-        print(f"Error processing loadcell_full: {e}")
+            if weight_kg >= 1.5:
+                print("✅ Chicken weight >= 1. 5kg — activating stepper motor.")
+                rotate_stepper_motor()
+            else:
+                print("⚖️ Chicken not ready — weight is below 1.5kg.")
+        except Exception as e:
+            print(f"Error processing loadcell_full: {e}")
 
-    
+    # Half load cell - egg drop
     if sensor_data.get('type') == 'loadcell_half':
         try:
             weight_grams = float(sensor_data.get('value', 0))
@@ -189,9 +193,27 @@ def create_sensor():
         except Exception as e:
             print(f"Error processing loadcell_half data: {e}")
 
+
+        # Capacitive Water Level Sensor - Auto Refill Control
+    if sensor_data.get('type') == 'water_level':
+        try:
+            water_level = float(sensor_data.get('percent', 0))
+            print(f"📉 Water level: {water_level:.2f}")
+
+            if water_level < 10:
+                print("💧 Low water level detected — activating water pump relay.")
+                activate_relay()
+            else:
+                print("🟡 Water level madami na boi.")
+                deactivate_relay()
+
+        except Exception as e:
+            print(f"Error processing water level data: {e}")
+
+    # Ultrasonic sensor - height detection
     if sensor_data.get('type') == 'ultrasonic':
         try:
-            sensor_value = float(sensor_data.get('value', 0))  # Distance from sensor to chicken's back
+            sensor_value = float(sensor_data.get('value', 0))
             total_height_cm = 45.72
             chicken_height = total_height_cm - sensor_value
 
@@ -199,25 +221,21 @@ def create_sensor():
 
             if chicken_height >= 25:
                 message_text = f"🐔 Chicken is now {chicken_height:.2f} cm tall — ready for sale!"
-
                 response = sms.send_message({
-                    "from": "PITIK PROJECT",  # Or your Vonage number if needed
-                    "to": "639613886156",     # No '+' sign
+                    "from": "PITIK PROJECT",
+                    "to": "639613886156",
                     "text": message_text,
                 })
 
                 if response["messages"][0]["status"] == "0":
-                    print("0MS sent successfully.")
+                    print("✅ SMS sent successfully.")
                 else:
                     print(f"❌ SMS failed: {response['messages'][0]['error-text']}")
             else:
                 print("Chicken not ready yet (below 25 cm). No SMS sent.")
-
         except Exception as e:
             print(f"Error during SMS send or height calculation: {e}")
 
-       
-    
     socketio.emit('new_sensor_data', {
         'message': 'New sensor data received',
         'data': sensor_data
@@ -227,5 +245,3 @@ def create_sensor():
         'message': 'Sensor data inserted',
         'id': str(result.inserted_id)
     })
-
-
