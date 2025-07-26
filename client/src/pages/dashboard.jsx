@@ -34,7 +34,7 @@ export default function Dashboard() {
   const [throughBeamReadings, setThroughBeamReadings] = useState([]);
 
   useEffect(() => {
-    const socket = io("http://192.168.100.20:5000");
+    const socket = io("http://192.168.1.244:5000", {});
 
     socket.on("connect", () => {
       console.log("Connected");
@@ -48,9 +48,9 @@ export default function Dashboard() {
 
     socket.on("new_sensor_data", (payload) => {
       const sensor = payload.data;
-
+      console.log(sensor);
       if (sensor.type === "ultrasonic") {
-        setDistance(sensor.value);
+        setDistance(45.72 - sensor.value);
       } else if (sensor.type === "water_level") {
         setWaterLevel({
           percent: sensor.percent,
@@ -123,20 +123,25 @@ export default function Dashboard() {
         <h1 className="text-4xl font-bold">PITIK - Dashboard</h1>
         <div className="flex justify-center items-center gap-2 mt-2">
           <div
-            className={`w-3 h-3 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`}
+            className={`w-3 h-3 rounded-full ${
+              isConnected ? "bg-green-500" : "bg-red-500"
+            }`}
           ></div>
           <span>{isConnected ? "Connected" : "Disconnected"}</span>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <ChickenHeight distance={distance} />
+        <ChickenHeight distance={distance} history={ultrasonicReadings} />
         <WaterLevel waterLevel={waterLevel} />
         <ThroughBeam readings={throughBeamReadings} />
-        <LoadCellStepper weight={weight} height={distance} history={loadCellHistory} />
+        <LoadCellStepper
+          weight={weight}
+          height={distance}
+          history={loadCellHistory}
+        />
         <FeedWeightMonitor weight={feedWeight} history={feedHistory} />
-        <RaspiCam /> 
-
+        <RaspiCam />
       </div>
     </div>
   );

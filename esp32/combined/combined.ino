@@ -7,11 +7,12 @@ const char* ssid = "SKYW_5F70_2G";
 const char* password = "9H56bKXv";
 
 // API endpoint
-const char* serverName = "http://192.168.1.245:5000/sensors/";
+const char* serverName = "http://192.168.1.244:5000/sensors/";
 
 // ------------------- BEAM SENSOR -------------------
 #define BEAM_SENSOR_PIN 32
-int lastBeamStatus = HIGH;
+static bool isOccupied = false;
+static bool beamPreviouslyBroken = false;
 
 // ------------------- WATER LEVEL SENSOR -------------------
 #define WATER_SENSOR_PIN 34
@@ -32,7 +33,7 @@ bool triggeredFull = false;
 #define DT_HALF 18
 #define SCK_HALF 19
 HX711 scaleHalf;
-float calibrationHalf = -3500.0; // Adjust as needed
+float calibrationHalf = -3500.0;
 bool triggeredHalf = false;
 
 // ------------------- ULTRASONIC SENSOR -------------------
@@ -40,6 +41,9 @@ bool triggeredHalf = false;
 #define ECHO_PIN  12
 unsigned long lastUltrasonicCheck = 0;
 const unsigned long ultrasonicInterval = 5000;
+
+// Function declaration
+void sendJSON(String payload);
 
 void setup() {
   Serial.begin(115200);
@@ -76,24 +80,34 @@ void setup() {
 
 void loop() {
   // ------------ BEAM SENSOR ------------
-  int currentBeamStatus = digitalRead(BEAM_SENSOR_PIN);
-  if (currentBeamStatus != lastBeamStatus) {
-    if (currentBeamStatus == LOW) {
+  int beamState = digitalRead(BEAM_SENSOR_PIN); // 1 = beam broken, 0 = clear
+
+  if (beamState == 1 && !beamPreviouslyBroken) {
+    beamPreviouslyBroken = true;
+
+    if (!isOccupied) {
       Serial.println("Chicken entered (beam broken)");
+      isOccupied = true;
+
       sendJSON("{\"type\":\"chicken_shower\", \"value\":\"detected\"}");
     } else {
-      Serial.println("Chicken exited (beam restored)");
+      Serial.println("Chicken exited (beam broken again)");
+      isOccupied = false;
+
       sendJSON("{\"type\":\"chicken_shower\", \"value\":\"clear\"}");
     }
-    lastBeamStatus = currentBeamStatus;
   }
 
-  // ------------ WATER SENSOR (every 5s) ------------
+  if (beamState == 0 && beamPreviouslyBroken) {
+    beamPreviouslyBroken = false;
+  }
+
+  // ------------ WATER SENSOR ------------
   if (millis() - lastWaterCheck >= waterCheckInterval) {
     lastWaterCheck = millis();
     int raw = analogRead(WATER_SENSOR_PIN);
     int percent = constrain(map(raw, emptyLevel, fullLevel, 0, 100), 0, 100);
-    String status = (percent < 25) ? "Low" : (percent < 75) ? "Medium" : "High";
+    String status = (percent < 5) ? "Low" : (percent < 15) ? "Medium" : "High";
 
     Serial.printf("Water: raw=%d, percent=%d%%, status=%s\n", raw, percent, status.c_str());
 
@@ -133,7 +147,7 @@ void loop() {
     Serial.println("HX711 Half Bridge not connected.");
   }
 
-  // ------------ ULTRASONIC SENSOR (every 5s) ------------
+  // ------------ ULTRASONIC SENSOR ------------
   if (millis() - lastUltrasonicCheck >= ultrasonicInterval) {
     lastUltrasonicCheck = millis();
 
@@ -155,6 +169,7 @@ void loop() {
   delay(50);
 }
 
+// ------------- sendJSON Function -------------
 void sendJSON(String payload) {
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;

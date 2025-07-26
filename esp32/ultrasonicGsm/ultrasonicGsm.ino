@@ -2,11 +2,11 @@
 #include <HTTPClient.h>
 
 // WiFi credentials
-const char* ssid = "SKYFiber_2.4GHz_JqP9";
-const char* password = "GJ7bqTqe";
+const char* ssid = "SKYW_5F70_2G";
+const char* password = "9H56bKXv";
 
 // API endpoint
-const char* serverName = "http://192.168.100.20:5000/sensors/";
+const char* serverName = "http://192.168.1.246:5000/sensors/";
 
 // Ultrasonic sensor pins
 const int trigPin = 5;

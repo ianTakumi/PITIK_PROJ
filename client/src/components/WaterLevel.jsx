@@ -31,7 +31,8 @@ export default function WaterLevel({ waterLevel, history = [] }) {
         <ul className="space-y-1 text-sm text-gray-300 max-h-48 overflow-auto">
           {visibleHistory.map((item, idx) => (
             <li key={idx}>
-              <span className="font-semibold">{item.time}:</span> {item.percent}% – {item.status}
+              <span className="font-semibold">{item.time}:</span> {item.percent}
+              % – {item.status}
             </li>
           ))}
         </ul>
