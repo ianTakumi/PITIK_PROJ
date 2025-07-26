@@ -2,6 +2,8 @@ from flask import Blueprint, request, jsonify
 from extensions import socketio
 from datetime import datetime
 from gpiozero import OutputDevice, Servo
+import cv2
+import numpy as np
 
 import os
 from dotenv import load_dotenv
@@ -102,6 +104,54 @@ def get_platform_load_cell_sensors():
 def get_through_beam_sensors():
     data = list(request.db['through_beam'].find())
     return jsonify(format_data(data))
+
+@sensors_bp.route('/raspi_cam', methods=['POST'])
+def detect_eggs_from_image():
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image file provided'}), 400
+
+    file = request.files['image']
+    if file.filename == '':
+        return jsonify({'error': 'Empty filename'}), 400
+
+    # Read the image using OpenCV
+    file_bytes = np.frombuffer(file.read(), np.uint8)
+    image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+
+    if image is None:
+        return jsonify({'error': 'Failed to decode image'}), 400
+
+    # Convert to HSV for better color detection
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+    # Define white range
+    lower_white = np.array([0, 0, 200])
+    upper_white = np.array([180, 40, 255])
+    mask = cv2.inRange(hsv, lower_white, upper_white)
+
+    # Find contours
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    egg_count = 0
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if area > 1000:  # threshold may vary
+            egg_count += 1
+            cv2.drawContours(image, [cnt], -1, (0, 255, 0), 2)
+
+    # Optional: Save result image for debugging
+    # cv2.imwrite("debug_detected.jpg", image)
+
+    # Emit real-time event
+    socketio.emit('egg_detection', {
+        'message': f'{egg_count} egg(s) detected',
+        'count': egg_count
+    })
+
+    return jsonify({
+        'message': 'Image processed',
+        'egg_count': egg_count
+    })
 
 # Relay functions
 def activate_relay():
