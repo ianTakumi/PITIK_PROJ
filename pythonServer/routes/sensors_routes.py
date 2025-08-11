@@ -217,10 +217,8 @@ def create_sensor():
     if sensor_data.get('type') == 'loadcell_full':
         try:
             weight_grams = float(sensor_data.get('value', 0))
-            weight_kg = weight_grams / 1000
-            print(f"Measured weight: {weight_kg:.2f} kg")
 
-            if weight_kg >= 1.5:
+            if weight_grams >= 1.5:
                 print("✅ Chicken weight >= 1. 5kg — activating stepper motor.")
                 rotate_stepper_motor()
             else:

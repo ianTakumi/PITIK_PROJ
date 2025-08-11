@@ -1,51 +1,39 @@
 #include "HX711.h"
 
-// HX711 pins
-#define DT  4    // HX711 DOUT
-#define SCK 5    // HX711 SCK
+#define DT  21
+#define SCK 25
 
 HX711 scale;
 
-float calibration_factor = -7050;  // Adjust this based on your own calibration
-float threshold = 50.0;            // Trigger weight in grams
-bool triggered = false;
+  float calibration_factor = 3010.263184; // mula sa calibration
+  long zero_offset = 0;
 
 void setup() {
   Serial.begin(115200);
+  scale.begin(DT, SCK);
   delay(1000);
 
-  Serial.println("Initializing HX711...");
-  scale.begin(DT, SCK);
-  delay(500);  // Let the HX711 stabilize
+  Serial.println("Remove all weight from scale...");
+  delay(3000);
 
-  if (scale.is_ready()) {
-    Serial.println("HX711 ready.");
-    scale.set_scale(calibration_factor);  // Set calibration factor
-    scale.tare();                         // Set current reading as 0
-    Serial.println("Tared. Ready to weigh.");
-  } else {
-    Serial.println("HX711 not found. Check wiring.");
-  }
+  scale.tare(); // zero the scale
+  zero_offset = scale.read_average(10); // kunin ang raw zero
+  Serial.print("Zero offset: ");    
+  Serial.println(zero_offset);
+
+  scale.set_scale(calibration_factor);
+  Serial.println("Place weight to test...");
 }
 
 void loop() {
   if (scale.is_ready()) {
-    float weight = scale.get_units(5);  // Average of 5 readings
+    long raw = scale.read_average(5) - zero_offset; // tanggalin offset
+    float weight = raw / calibration_factor; // convert to grams
     Serial.print("Weight: ");
     Serial.print(weight, 2);
     Serial.println(" g");
-
-    if (!triggered && weight > threshold) {
-      Serial.println("Object detected on scale.");
-      triggered = true;
-    } else if (triggered && weight <= threshold) {
-      Serial.println("Object removed from scale.");
-      triggered = false;
-    }
-
   } else {
-    Serial.println("Waiting for HX711...");
+    Serial.println("HX711 not connected.");
   }
-
   delay(500);
 }
