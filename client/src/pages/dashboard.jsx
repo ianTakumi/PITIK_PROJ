@@ -1,32 +1,29 @@
 import React, { useState, useEffect, useRef } from "react";
-import { io } from "socket.io-client";
 import ChickenHeight from "../components/ChickenHeight";
 import WaterLevel from "../components/WaterLevel";
 import ThroughBeam from "../components/ThroughBeam";
 import LoadCellStepper from "../components/LoadCellStepper";
 import FeedWeightMonitor from "../components/FeedWeight";
 import RaspiCam from "../components/RaspiCam";
-import axiosInstance from "../utils/axios";
 
 export default function Dashboard() {
-  const [distance, setDistance] = useState(0);
+  const [distance, setDistance] = useState(12.5);
 
   // Chicken weight (platform)
-  const [weight, setWeight] = useState(0);
+  const [weight, setWeight] = useState(350);
   const [loadCellHistory, setLoadCellHistory] = useState([]);
 
   // Feed tray weight
-  const [feedWeight, setFeedWeight] = useState(0);
+  const [feedWeight, setFeedWeight] = useState(1250);
   const [feedHistory, setFeedHistory] = useState([]);
 
   const [waterLevel, setWaterLevel] = useState({
-    percent: 0,
-    status: "Unknown",
-    raw: 0,
+    percent: 85,
+    status: "Good",
+    raw: 820,
   });
 
-  const [isConnected, setIsConnected] = useState(false);
-  const socketRef = useRef(null);
+  const [isConnected, setIsConnected] = useState(true);
 
   const [ultrasonicReadings, setUltrasonicReadings] = useState([]);
   const [waterLevelReadings, setWaterLevelReadings] = useState([]);
@@ -50,90 +47,215 @@ export default function Dashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    const socket = io("http://192.168.1.244:5000/", {});
+  // Generate mock ultrasonic data
+  const generateUltrasonicData = () => {
+    const data = [];
+    const now = new Date();
+    for (let i = 0; i < 20; i++) {
+      const time = new Date(now - i * 3600000); // Last 20 hours
+      const value = 12.5 + (Math.random() * 2 - 1); // Random between 11.5-13.5
+      data.push({
+        id: i,
+        value: parseFloat(value.toFixed(1)),
+        timestamp: time.toISOString(),
+        type: "ultrasonic",
+      });
+    }
+    return data;
+  };
 
-    socket.on("connect", () => {
-      console.log("Connected");
-      setIsConnected(true);
-    });
+  // Generate mock water level data
+  const generateWaterLevelData = () => {
+    const data = [];
+    const now = new Date();
+    for (let i = 0; i < 15; i++) {
+      const time = new Date(now - i * 1800000); // Last 7.5 hours
+      const percent = 70 + Math.random() * 30; // Random between 70-100%
+      data.push({
+        id: i,
+        percent: Math.round(percent),
+        status: percent > 85 ? "Good" : percent > 50 ? "Low" : "Critical",
+        raw: Math.floor(percent * 9.65),
+        timestamp: time.toISOString(),
+      });
+    }
+    return data;
+  };
 
-    socket.on("disconnect", () => {
-      console.log("Disconnected");
-      setIsConnected(false);
-    });
-
-    socket.on("new_sensor_data", (payload) => {
-      const sensor = payload.data;
-      console.log(sensor);
-      if (sensor.type === "ultrasonic") {
-        setDistance(45.72 - sensor.value);
-      } else if (sensor.type === "water_level") {
-        setWaterLevel({
-          percent: sensor.percent,
-          status: sensor.status,
-          raw: sensor.raw,
+  // Generate mock through-beam data
+  const generateThroughBeamData = () => {
+    const data = [];
+    const now = new Date();
+    let count = 0;
+    for (let i = 0; i < 24; i++) {
+      const time = new Date(now - i * 3600000); // Last 24 hours
+      // Randomly simulate chicken passing through
+      if (Math.random() > 0.6) {
+        count++;
+        data.push({
+          id: i,
+          timestamp: time.toISOString(),
+          value: true,
+          count: count,
         });
-      } else if (sensor.type === "loadcell_full") {
-        setWeight(sensor.value); // chicken weight platform
-      } else if (sensor.type === "loadcell_half") {
-        setFeedWeight(sensor.value); // feed tray weight
-      } else if (sensor.type === "chicken_shower") {
-        setThroughBeamReadings(sensor.value);
       }
-    });
+    }
+    return data;
+  };
 
-    socketRef.current = socket;
+  // Generate mock load cell data (chicken weight)
+  const generateLoadCellData = () => {
+    const data = [];
+    const now = new Date();
+    let baseWeight = 350;
+    for (let i = 0; i < 30; i++) {
+      const time = new Date(now - i * 7200000); // Last 60 hours
+      // Simulate gradual weight gain with some fluctuation
+      baseWeight += Math.random() * 2;
+      const fluctuation = Math.random() * 10 - 5; // -5 to +5
+      const value = baseWeight + fluctuation;
+      data.push({
+        id: i,
+        value: parseFloat(value.toFixed(1)),
+        timestamp: time.toISOString(),
+        type: "loadcell_full",
+      });
+    }
+    return data;
+  };
 
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
+  // Generate mock feed weight data
+  const generateFeedWeightData = () => {
+    const data = [];
+    const now = new Date();
+    let baseWeight = 1250;
+    for (let i = 0; i < 40; i++) {
+      const time = new Date(now - i * 1080000); // Last 12 hours
+      // Simulate feeding patterns: weight decreases over time, then refills
+      if (i % 8 === 0) {
+        baseWeight = 1500; // Refill
+      } else {
+        baseWeight -= Math.random() * 30;
       }
-    };
+      const value = Math.max(200, baseWeight); // Don't go below 200g
+      data.push({
+        id: i,
+        value: parseFloat(value.toFixed(1)),
+        timestamp: time.toISOString(),
+        type: "loadcell_half",
+      });
+    }
+    return data;
+  };
+
+  useEffect(() => {
+    // Simulate real-time updates
+    const updateInterval = setInterval(() => {
+      // Update ultrasonic with slight variation
+      setDistance((prev) => {
+        const change = Math.random() * 0.4 - 0.2; // -0.2 to +0.2
+        return parseFloat((prev + change).toFixed(1));
+      });
+
+      // Update weight with gradual increase
+      setWeight((prev) => {
+        const change = Math.random() * 0.5; // 0 to 0.5g increase
+        return parseFloat((prev + change).toFixed(1));
+      });
+
+      // Update feed weight (slow decrease)
+      setFeedWeight((prev) => {
+        const change = Math.random() * 2; // 0 to 2g decrease per minute
+        return parseFloat(Math.max(200, prev - change).toFixed(1));
+      });
+
+      // Update water level (very slow decrease)
+      setWaterLevel((prev) => {
+        const newPercent = Math.max(20, prev.percent - Math.random() * 0.1);
+        return {
+          percent: parseFloat(newPercent.toFixed(1)),
+          status:
+            newPercent > 85 ? "Good" : newPercent > 50 ? "Low" : "Critical",
+          raw: Math.floor(newPercent * 9.65),
+        };
+      });
+
+      // Simulate occasional through-beam triggers
+      if (Math.random() > 0.95) {
+        // 5% chance per interval
+        setThroughBeamReadings((prev) => {
+          const newReading = {
+            id: Date.now(),
+            timestamp: new Date().toISOString(),
+            value: true,
+            count: prev.length > 0 ? prev[0].count + 1 : 1,
+          };
+          return [newReading, ...prev.slice(0, 9)];
+        });
+      }
+    }, 5000); // Update every 5 seconds
+
+    return () => clearInterval(updateInterval);
   }, []);
 
+  useEffect(() => {
+    // Initialize with mock data
+    setUltrasonicReadings(generateUltrasonicData());
+    setWaterLevelReadings(generateWaterLevelData());
+    setThroughBeamReadings(generateThroughBeamData());
+    setLoadCellHistory(generateLoadCellData());
+    setFeedHistory(generateFeedWeightData());
+  }, []);
+
+  // Mock functions that simulate API calls
   const fetchLatestUltrasonic = async () => {
-    const res = await axiosInstance.get("/sensors/ultrasonic");
-    setDistance(res.data[0]?.value || 0);
-    setUltrasonicReadings(res.data);
+    console.log("Mock: Fetching ultrasonic data");
+    setUltrasonicReadings(generateUltrasonicData());
+    return { data: generateUltrasonicData() };
   };
 
   const fetchLatestWaterLevel = async () => {
-    const res = await axiosInstance.get("/sensors/capacitive-water-level");
-    setWaterLevel({
-      percent: res.data[0]?.percent || 0,
-      status: res.data[0]?.status || "Unknown",
-      raw: res.data[0]?.raw || 0,
-    });
+    console.log("Mock: Fetching water level data");
+    setWaterLevelReadings(generateWaterLevelData());
+    return { data: generateWaterLevelData() };
   };
 
   const fetchLatestThroughBeam = async () => {
-    const res = await axiosInstance.get("/sensors/through-beam");
-    setThroughBeamReadings(res.data);
+    console.log("Mock: Fetching through-beam data");
+    setThroughBeamReadings(generateThroughBeamData());
+    return { data: generateThroughBeamData() };
   };
 
   const fetchLatestLoadCell = async () => {
-    const res = await axiosInstance.get("/sensors/load-cell");
-    setLoadCellHistory(res.data);
-    if (res.data[0]?.value) {
-      setWeight(res.data[0].value);
+    console.log("Mock: Fetching load cell data");
+    const newData = generateLoadCellData();
+    setLoadCellHistory(newData);
+    if (newData[0]?.value) {
+      setWeight(newData[0].value);
     }
+    return { data: newData };
   };
 
   const fetchLatestFeedWeight = async () => {
-    const res = await axiosInstance.get("/sensors/platform-load-cell");
-    setFeedHistory(res.data);
-    if (res.data[0]?.value) {
-      setFeedWeight(res.data[0].value);
+    console.log("Mock: Fetching feed weight data");
+    const newData = generateFeedWeightData();
+    setFeedHistory(newData);
+    if (newData[0]?.value) {
+      setFeedWeight(newData[0].value);
     }
+    return { data: newData };
   };
 
+  // Simulate connection status changes
   useEffect(() => {
-    fetchLatestUltrasonic();
-    fetchLatestWaterLevel();
-    fetchLatestThroughBeam();
-    fetchLatestLoadCell();
-    fetchLatestFeedWeight();
+    const connectionInterval = setInterval(() => {
+      if (Math.random() > 0.9) {
+        // 10% chance to toggle connection
+        setIsConnected((prev) => !prev);
+      }
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(connectionInterval);
   }, []);
 
   return (
@@ -144,10 +266,10 @@ export default function Dashboard() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-center sm:text-left">
               <h1 className="text-4xl sm:text-5xl font-black bg-gradient-to-r from-orange-500 via-pink-500 to-purple-600 bg-clip-text text-transparent">
-                🐔 PITIK
+                🐔 PITIK (DEMO)
               </h1>
               <p className="text-lg text-gray-600 font-medium mt-1">
-                Smart Chicken Monitoring System
+                Smart Chicken Monitoring System - Mock Data
               </p>
             </div>
 
@@ -174,7 +296,7 @@ export default function Dashboard() {
                     isConnected ? "text-green-700" : "text-red-700"
                   }`}
                 >
-                  {isConnected ? "🟢 Live" : "🔴 Offline"}
+                  {isConnected ? "🟢 Live (Mock)" : "🔴 Offline (Mock)"}
                 </span>
               </div>
             </div>
